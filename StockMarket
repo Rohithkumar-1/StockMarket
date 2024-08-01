@@ -1,0 +1,53 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+
+data = pd.read_csv('ADANIPORTS.csv')
+data = data['Close'].values.reshape(-1,1)
+
+scaler = MinMaxScaler(feature_range=(0,1))
+data_normalized = scaler.fit_transform(data)
+
+training_size = int(len(data_normalized) * 0.8)
+training_data = data_normalized[:training_size]
+testing_data = data_normalized[training_size:]
+
+def create_sequences(data, seq_length):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i+seq_length])
+        y.append(data[i+seq_length])
+    return np.array(X), np.array(y)
+
+seq_length = 10
+X_train, y_train = create_sequences(training_data, seq_length)
+X_test, y_test = create_sequences(testing_data, seq_length)
+
+model = Sequential([
+    LSTM(units=50, return_sequences=True, input_shape=(seq_length, 1)),
+    Dropout(0.2),
+    LSTM(units=50, return_sequences=True),
+    Dropout(0.2),
+    LSTM(units=50),
+    Dropout(0.2),
+    Dense(units=1)
+])
+
+model.compile(optimizer='adam', loss='mean_squared_error')
+model.fit(X_train, y_train, epochs=1, batch_size=32)
+model.evaluate(X_test, y_test)
+
+predictions = model.predict(X_test)
+predictions = scaler.inverse_transform(predictions)
+
+plt.figure(figsize=(10,6))
+plt.plot(data[training_size+seq_length:], color='blue', label='Actual Stock Price')
+plt.plot(predictions, color='red', label='Predicted Stock Price')
+plt.title('Stock Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('Stock Price')
+plt.legend()
+plt.show()
